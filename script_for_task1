@@ -1,2 +1,107 @@
 #/bin/bash
 #Task with bond
+
+#Remove namespaces if found
+sudo ip netns delete netns1
+sudo ip netns delete netns2
+sudo ip netns delete netns3
+sudo ip netns delete netns4
+sudo ip netns delete netns5
+sudo ip netns delete netns6
+
+#Create namespaces
+sudo ip netns add netns1
+sudo ip netns add netns2
+sudo ip netns add netns3
+sudo ip netns add netns4
+sudo ip netns add netns5
+sudo ip netns add netns6
+
+#Create veth links
+sudo ip link add veth11 netns netns1 type veth peer name veth15 netns netns5
+sudo ip link add veth22 netns netns2 type veth peer name veth25 netns netns5
+sudo ip link add veth33 netns netns3 type veth peer name veth36 netns netns6
+sudo ip link add veth44 netns netns4 type veth peer name veth46 netns netns6
+sudo ip link add vethx1 netns netns5 type veth peer name vethy1 netns netns6
+sudo ip link add vethx2 netns netns5 type veth peer name vethy2 netns netns6
+
+#Create bond links
+sudo ip -n netns5 link add bondx type bond mode 802.3ad
+sudo ip -n netns6 link add bondy type bond mode 802.3ad
+sudo ip -n netns5 link add link bondx name vethx2.50 type vlan id 50
+sudo ip -n netns5 link add link bondx name vethx1.60 type vlan id 60
+sudo ip -n netns6 link add link bondy name vethy2.50 type vlan id 50
+sudo ip -n netns6 link add link bondy name vethy1.60 type vlan id 60
+
+#Set bond as master
+sudo ip -n netns5 link set vethx2 master bondx
+sudo ip -n netns5 link set vethx1 master bondx
+sudo ip -n netns6 link set vethy2 master bondy
+sudo ip -n netns6 link set vethy1 master bondy
+ 
+#Set ip addresses
+sudo ip -n netns1 addr add 192.168.7.1/24 dev veth11 
+sudo ip -n netns2 addr add 192.168.7.2/24 dev veth22 
+sudo ip -n netns3 addr add 192.168.7.3/24 dev veth33 
+sudo ip -n netns4 addr add 192.168.7.4/24 dev veth44
+ 
+#Create bridges
+sudo ip -n netns5 link add name brx type bridge
+sudo ip -n netns5 link set vethx2.50 master brx
+sudo ip -n netns5 link set vethx1.60 master brx
+sudo ip -n netns5 link set veth15 master brx
+sudo ip -n netns5 link set veth25 master brx
+sudo ip -n netns6 link add name bry type bridge
+sudo ip -n netns6 link set vethy2.50 master bry
+sudo ip -n netns6 link set vethy1.60 master bry
+sudo ip -n netns6 link set veth36 master bry
+sudo ip -n netns6 link set veth46 master bry
+ 
+#Set vlan filtering
+sudo ip -n netns5 link set dev brx type bridge vlan_filtering 1
+sudo ip -n netns6 link set dev bry type bridge vlan_filtering 1
+
+#Set vlan
+sudo bridge -n netns5 vlan add vid 10 pvid untagged dev veth15
+sudo bridge -n netns5 vlan add vid 20 pvid untagged dev veth25
+sudo bridge -n netns6 vlan add vid 10 pvid untagged dev veth36
+sudo bridge -n netns6 vlan add vid 20 pvid untagged dev veth46
+sudo bridge -n netns5 vlan add vid 10 pvid 50 dev vethx2.50
+sudo bridge -n netns5 vlan add vid 20 pvid 60 dev vethx1.60
+sudo bridge -n netns6 vlan add vid 10 pvid 50 dev vethy2.50
+sudo bridge -n netns6 vlan add vid 20 pvid 60 dev vethy1.60
+ 
+#Up all interfaces
+sudo ip -n netns1 link set lo up
+sudo ip -n netns2 link set lo up
+sudo ip -n netns3 link set lo up
+sudo ip -n netns4 link set lo up
+sudo ip -n netns5 link set lo up
+sudo ip -n netns6 link set lo up
+sudo ip -n netns5 link set bondx up
+sudo ip -n netns6 link set bondy up
+sudo ip -n netns1 link set veth11 up
+sudo ip -n netns2 link set veth22 up
+sudo ip -n netns3 link set veth33 up
+sudo ip -n netns4 link set veth44 up
+sudo ip -n netns5 link set veth15 up
+sudo ip -n netns5 link set veth25 up
+sudo ip -n netns5 link set vethx2.50 up
+sudo ip -n netns5 link set vethx1.60 up
+sudo ip -n netns6 link set veth36 up
+sudo ip -n netns6 link set veth46 up
+sudo ip -n netns6 link set vethy2.50 up
+sudo ip -n netns6 link set vethy1.60 up
+sudo ip -n netns5 link set brx up
+sudo ip -n netns6 link set bry up
+
+#RUN commands to check
+#will ping properly:
+#sudo ip netns exec netns2 ping 192.168.7.4    
+#will not ping
+#sudo ip netns exec netns1 ping 192.168.7.4
+#sudo ip netns exec netns6 tcpdump -i bry -nn -e  vlan
+#sudo ip netns exec netns5 tcpdump -i brx -nn -e  vlan
+#sudo ip netns exec netns6 tcpdump -i bondy -nn -e  vlan
+#sudo ip netns exec netns5 tcpdump -i bondx -nn -e  vlan
+
